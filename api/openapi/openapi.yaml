@@ -1,0 +1,889 @@
+openapi: "3.1.0"
+info:
+  title: DFMS API
+  version: 1.0.0
+  description: |
+    Distributed File Management System — REST API for file upload, download,
+    versioning, search, and administration.
+
+    ## Authentication
+    All protected endpoints require a Bearer token in the `Authorization` header.
+    Obtain a token via `POST /api/v1/auth/login`.
+
+    ## Rate Limiting
+    - **Global**: 10,000 requests/minute
+    - **Per user**: 200 requests/minute
+    - **Upload**: 20 requests/minute
+    - **Auth**: 5 requests/minute
+
+  contact:
+    name: Anirudh
+    url: https://github.com/AnirudhSinghRajora/DFMS
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+  - url: https://localhost
+    description: Production (via Traefik)
+
+tags:
+  - name: Auth
+    description: User registration, login, and token refresh
+  - name: Files
+    description: File upload, download, list, and delete
+  - name: Versions
+    description: File version history and rollback
+  - name: Multipart
+    description: Large file multipart upload
+  - name: Folders
+    description: Virtual folder management
+  - name: Search
+    description: Full-text file search
+  - name: Admin
+    description: System administration
+  - name: Operations
+    description: Health, readiness, and metrics
+
+paths:
+  # ─── Auth ──────────────────────────────────────────────────
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+            example:
+              email: user@example.com
+              password: securepass123
+              display_name: John Doe
+      responses:
+        "201":
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email and password
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              email: user@example.com
+              password: securepass123
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+              example:
+                access_token: eyJhbGciOiJFUzI1NiIs...
+                refresh_token: eyJhbGciOiJFUzI1NiIs...
+                token_type: Bearer
+                expires_in: 900
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        "200":
+          description: New token pair
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid or expired refresh token
+
+  # ─── Files ─────────────────────────────────────────────────
+  /api/v1/files/upload:
+    post:
+      tags: [Files]
+      summary: Upload a file
+      operationId: uploadFile
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-File-Name
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Original file name
+        - name: X-Folder-ID
+          in: header
+          schema:
+            type: string
+            format: uuid
+          description: Optional parent folder ID
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "201":
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "413":
+          description: File too large (exceeds max_upload_size)
+        "507":
+          description: Storage quota exceeded
+
+  /api/v1/files:
+    get:
+      tags: [Files]
+      summary: List user's files
+      operationId: listFiles
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [name, size, created_at, updated_at]
+            default: created_at
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        "200":
+          description: File list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/files/{id}:
+    get:
+      tags: [Files]
+      summary: Get file metadata
+      operationId: getFile
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200":
+          description: File metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Files]
+      summary: Delete a file
+      operationId: deleteFile
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200":
+          description: File deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/files/{id}/download:
+    get:
+      tags: [Files]
+      summary: Download a file
+      operationId: downloadFile
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200":
+          description: File content stream
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: "attachment; filename=\"report.pdf\""
+            X-Checksum-SHA256:
+              schema:
+                type: string
+              description: SHA-256 checksum of the file
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Versions ──────────────────────────────────────────────
+  /api/v1/files/{id}/versions:
+    get:
+      tags: [Versions]
+      summary: List file versions
+      operationId: listVersions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200":
+          description: Version list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  versions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FileVersion"
+
+  /api/v1/files/{id}/versions/{version}/download:
+    get:
+      tags: [Versions]
+      summary: Download a specific version
+      operationId: downloadVersion
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+        - $ref: "#/components/parameters/VersionNumber"
+      responses:
+        "200":
+          description: Version content stream
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/files/{id}/versions/{version}:
+    delete:
+      tags: [Versions]
+      summary: Delete a specific version
+      operationId: deleteVersion
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+        - $ref: "#/components/parameters/VersionNumber"
+      responses:
+        "200":
+          description: Version deleted
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ─── Multipart Upload ─────────────────────────────────────
+  /api/v1/files/upload/multipart/init:
+    post:
+      tags: [Multipart]
+      summary: Initialize multipart upload
+      operationId: multipartInit
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_name, file_size]
+              properties:
+                file_name:
+                  type: string
+                file_size:
+                  type: integer
+                  format: int64
+                  description: Total file size in bytes
+            example:
+              file_name: large_video.mp4
+              file_size: 1073741824
+      responses:
+        "201":
+          description: Upload initialized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  upload_id:
+                    type: string
+                    format: uuid
+                  part_size:
+                    type: integer
+                    description: Recommended part size in bytes
+
+  /api/v1/files/upload/multipart/{uploadId}/part/{partNum}:
+    put:
+      tags: [Multipart]
+      summary: Upload a part
+      operationId: multipartUploadPart
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: partNum
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        "200":
+          description: Part uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  part_number:
+                    type: integer
+                  etag:
+                    type: string
+
+  /api/v1/files/upload/multipart/{uploadId}/complete:
+    post:
+      tags: [Multipart]
+      summary: Complete multipart upload
+      operationId: multipartComplete
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "201":
+          description: Upload completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileResponse"
+        "400":
+          description: Missing parts or invalid upload
+
+  /api/v1/files/upload/multipart/{uploadId}:
+    delete:
+      tags: [Multipart]
+      summary: Abort multipart upload
+      operationId: multipartAbort
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Upload aborted and parts cleaned up
+
+  # ─── Folders ───────────────────────────────────────────────
+  /api/v1/folders:
+    post:
+      tags: [Folders]
+      summary: Create a folder
+      operationId: createFolder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                parent_id:
+                  type: string
+                  format: uuid
+            example:
+              name: Documents
+              parent_id: null
+      responses:
+        "201":
+          description: Folder created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FolderResponse"
+
+  /api/v1/folders/{id}/contents:
+    get:
+      tags: [Folders]
+      summary: List folder contents
+      operationId: listFolderContents
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Folder contents
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  files:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FileResponse"
+                  folders:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FolderResponse"
+
+  /api/v1/files/{id}/move:
+    put:
+      tags: [Folders]
+      summary: Move file to another folder
+      operationId: moveFile
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_folder_id]
+              properties:
+                target_folder_id:
+                  type: string
+                  format: uuid
+      responses:
+        "200":
+          description: File moved
+
+  /api/v1/folders/{id}:
+    delete:
+      tags: [Folders]
+      summary: Delete a folder
+      operationId: deleteFolder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Folder deleted
+        "409":
+          description: Folder not empty
+
+  # ─── Search ────────────────────────────────────────────────
+  /api/v1/search:
+    get:
+      tags: [Search]
+      summary: Search files
+      operationId: searchFiles
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: Search query (matches file name, MIME type)
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileListResponse"
+
+  # ─── Admin ─────────────────────────────────────────────────
+  /api/v1/admin/nodes:
+    get:
+      tags: [Admin]
+      summary: List storage nodes
+      operationId: listNodes
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Storage node list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/StorageNode"
+
+  # ─── Operations ────────────────────────────────────────────
+  /health:
+    get:
+      tags: [Operations]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /ready:
+    get:
+      tags: [Operations]
+      summary: Readiness check
+      operationId: readinessCheck
+      responses:
+        "200":
+          description: All dependencies ready
+        "503":
+          description: One or more dependencies unavailable
+
+  /metrics:
+    get:
+      tags: [Operations]
+      summary: Prometheus metrics
+      operationId: getMetrics
+      responses:
+        "200":
+          description: Prometheus metrics in text format
+
+  /api/v1/storage/usage:
+    get:
+      tags: [Operations]
+      summary: Get user's storage usage
+      operationId: storageUsage
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Storage usage stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  used_bytes:
+                    type: integer
+                    format: int64
+                  quota_bytes:
+                    type: integer
+                    format: int64
+                  file_count:
+                    type: integer
+
+# ─── Components ────────────────────────────────────────────
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 (ECDSA P-256) JWT access token
+
+  parameters:
+    FileId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: File UUID
+    VersionNumber:
+      name: version
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      description: Version number
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password, display_name]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        display_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Access token TTL in seconds
+
+    FileResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        size:
+          type: integer
+          format: int64
+        mime_type:
+          type: string
+        checksum:
+          type: string
+          description: SHA-256 hash of the full file
+        version:
+          type: integer
+        folder_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    FileListResponse:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileResponse"
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+
+    FileVersion:
+      type: object
+      properties:
+        version:
+          type: integer
+        size:
+          type: integer
+          format: int64
+        checksum:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    FolderResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        parent_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    StorageNode:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        endpoint:
+          type: string
+        status:
+          type: string
+          enum: [healthy, unhealthy, draining]
+        last_check:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          description: Machine-readable error code
+
+  responses:
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "validation failed: email is required"
+            code: VALIDATION_ERROR
+
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "invalid or expired token"
+            code: UNAUTHORIZED
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: "file not found"
+            code: NOT_FOUND
