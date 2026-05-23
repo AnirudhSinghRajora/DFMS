@@ -1,0 +1,527 @@
+# ──────────────────────────────────────────────────────────────
+# DFMS Production Docker Compose
+#
+# Full stack: Traefik reverse proxy + 6 Go services + infrastructure.
+# All services have resource limits, health checks, and restart policies.
+#
+# Usage:
+#   docker compose -f deployments/docker-compose.prod.yml up -d
+#
+# Prerequisites:
+#   - Build images first: make docker-build
+#   - Generate JWT keys: make gen-keys
+#   - Create .env file with production secrets
+# ──────────────────────────────────────────────────────────────
+
+services:
+
+  # ─── Traefik Reverse Proxy ─────────────────────────────────
+  # TLS termination, path-based routing, automatic HTTPS redirect.
+  # Services register via Docker labels — no separate config needed.
+  traefik:
+    image: traefik:v3.3
+    container_name: dfms-traefik
+    command:
+      # API/Dashboard
+      - "--api.dashboard=true"
+      - "--api.insecure=false"
+      # Docker provider — auto-discover services via labels
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=dfms-frontend"
+      # HTTP entrypoint → redirect to HTTPS
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      # HTTPS entrypoint
+      - "--entrypoints.websecure.address=:443"
+      # TLS — self-signed for local prod; swap to Let's Encrypt for public
+      - "--entrypoints.websecure.http.tls=true"
+      # Health check
+      - "--ping=true"
+      - "--ping.entrypoint=web"
+      # Logging
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      - "--accesslog.format=json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8082:8080"  # Traefik dashboard (internal only in prod)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - dfms-frontend
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ─── PostgreSQL ────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: dfms-postgres
+    environment:
+      POSTGRES_USER: dfms
+      POSTGRES_PASSWORD: ${DFMS_DATABASE_PASSWORD:-dfms_prod_password}
+      POSTGRES_DB: dfms
+      # Performance tuning
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dfms"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── Redis ────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: dfms-redis
+    command: >
+      redis-server
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+        --save 60 1000
+        --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 640M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── MinIO ────────────────────────────────────────────────
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: dfms-minio
+    command: server /data/drive{1...4} --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${DFMS_MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${DFMS_MINIO_SECRET_KEY:-minioadmin123}
+    volumes:
+      - minio_data1:/data/drive1
+      - minio_data2:/data/drive2
+      - minio_data3:/data/drive3
+      - minio_data4:/data/drive4
+    networks:
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ─── MinIO Bucket Initialization ─────────────────────────
+  minio-init:
+    image: quay.io/minio/mc:latest
+    container_name: dfms-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set dfms http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+      mc mb --ignore-existing dfms/chunks;
+      mc mb --ignore-existing dfms/temp-uploads;
+      echo '✅ MinIO buckets initialized';
+      "
+    environment:
+      MINIO_ROOT_USER: ${DFMS_MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${DFMS_MINIO_SECRET_KEY:-minioadmin123}
+    networks:
+      - dfms-backend
+    restart: "no"
+
+  # ─── Kafka (KRaft mode) ──────────────────────────────────
+  kafka:
+    image: apache/kafka-native:latest
+    container_name: dfms-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:19092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:19092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_NUM_PARTITIONS: 6
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 168
+    networks:
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/kafka-logs/meta.properties"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+    restart: unless-stopped
+
+  # ─── Kafka Topic Init ───────────────────────────────────
+  kafka-init:
+    image: apache/kafka:latest
+    container_name: dfms-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic dfms.chunks.created --partitions 6 --replication-factor 1 --bootstrap-server kafka:19092;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic dfms.chunks.deleted --partitions 3 --replication-factor 1 --bootstrap-server kafka:19092;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic dfms.nodes.health   --partitions 3 --replication-factor 1 --bootstrap-server kafka:19092;
+      /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --topic dfms.files.deleted  --partitions 6 --replication-factor 1 --bootstrap-server kafka:19092;
+      echo '✅ Kafka topics created';
+      "
+    networks:
+      - dfms-backend
+    restart: "no"
+
+  # ─── Observability ────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: dfms-prometheus
+    volumes:
+      - ../configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: dfms-otel-collector
+    volumes:
+      - ../configs/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      - tempo
+    networks:
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: dfms-tempo
+    volumes:
+      - ../configs/tempo.yml:/etc/tempo.yaml:ro
+      - tempo_data:/var/tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    networks:
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: dfms-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "https://localhost/grafana/"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - tempo
+    networks:
+      - dfms-backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=PathPrefix(`/grafana`)"
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.routers.grafana.tls=true"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    restart: unless-stopped
+
+  # ═══════════════════════════════════════════════════════════
+  # DFMS APPLICATION SERVICES
+  # ═══════════════════════════════════════════════════════════
+
+  # ─── API Gateway ──────────────────────────────────────────
+  api-gateway:
+    image: dfms-api-gateway:latest
+    container_name: dfms-api-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      DFMS_DATABASE_PASSWORD: ${DFMS_DATABASE_PASSWORD:-dfms_prod_password}
+      DFMS_MINIO_ACCESS_KEY: ${DFMS_MINIO_ACCESS_KEY:-minioadmin}
+      DFMS_MINIO_SECRET_KEY: ${DFMS_MINIO_SECRET_KEY:-minioadmin123}
+    volumes:
+      - ../configs/config.prod.yaml:/app/configs/config.yaml:ro
+      - ../secrets:/app/secrets:ro
+      - ../migrations:/app/migrations:ro
+    networks:
+      - dfms-frontend
+      - dfms-backend
+    labels:
+      # Traefik routing — all API requests go to the gateway
+      - "traefik.enable=true"
+      - "traefik.http.routers.api.rule=PathPrefix(`/api`) || PathPrefix(`/health`) || PathPrefix(`/readiness`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls=true"
+      - "traefik.http.services.api.loadbalancer.server.port=8080"
+      # Rate limiting at the edge
+      - "traefik.http.middlewares.api-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.api-ratelimit.ratelimit.burst=50"
+      - "traefik.http.routers.api.middlewares=api-ratelimit"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ─── Chunk Service ────────────────────────────────────────
+  chunk-service:
+    image: dfms-chunk-service:latest
+    container_name: dfms-chunk-service
+    depends_on:
+      minio:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      DFMS_DATABASE_PASSWORD: ${DFMS_DATABASE_PASSWORD:-dfms_prod_password}
+      DFMS_MINIO_ACCESS_KEY: ${DFMS_MINIO_ACCESS_KEY:-minioadmin}
+      DFMS_MINIO_SECRET_KEY: ${DFMS_MINIO_SECRET_KEY:-minioadmin123}
+    volumes:
+      - ../configs/config.prod.yaml:/app/configs/config.yaml:ro
+      - ../secrets:/app/secrets:ro
+    networks:
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ─── Metadata Service ────────────────────────────────────
+  metadata-service:
+    image: dfms-metadata-service:latest
+    container_name: dfms-metadata-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DFMS_DATABASE_PASSWORD: ${DFMS_DATABASE_PASSWORD:-dfms_prod_password}
+    volumes:
+      - ../configs/config.prod.yaml:/app/configs/config.yaml:ro
+      - ../secrets:/app/secrets:ro
+    networks:
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ─── Replication Manager ──────────────────────────────────
+  replication-manager:
+    image: dfms-replication-manager:latest
+    container_name: dfms-replication-manager
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      DFMS_DATABASE_PASSWORD: ${DFMS_DATABASE_PASSWORD:-dfms_prod_password}
+      DFMS_MINIO_ACCESS_KEY: ${DFMS_MINIO_ACCESS_KEY:-minioadmin}
+      DFMS_MINIO_SECRET_KEY: ${DFMS_MINIO_SECRET_KEY:-minioadmin123}
+    volumes:
+      - ../configs/config.prod.yaml:/app/configs/config.yaml:ro
+      - ../secrets:/app/secrets:ro
+    networks:
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ─── GC Worker ────────────────────────────────────────────
+  gc-worker:
+    image: dfms-gc-worker:latest
+    container_name: dfms-gc-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      DFMS_DATABASE_PASSWORD: ${DFMS_DATABASE_PASSWORD:-dfms_prod_password}
+      DFMS_MINIO_ACCESS_KEY: ${DFMS_MINIO_ACCESS_KEY:-minioadmin}
+      DFMS_MINIO_SECRET_KEY: ${DFMS_MINIO_SECRET_KEY:-minioadmin123}
+    volumes:
+      - ../configs/config.prod.yaml:/app/configs/config.yaml:ro
+      - ../secrets:/app/secrets:ro
+    networks:
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # ─── Health Monitor ───────────────────────────────────────
+  health-monitor:
+    image: dfms-health-monitor:latest
+    container_name: dfms-health-monitor
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      DFMS_DATABASE_PASSWORD: ${DFMS_DATABASE_PASSWORD:-dfms_prod_password}
+      DFMS_MINIO_ACCESS_KEY: ${DFMS_MINIO_ACCESS_KEY:-minioadmin}
+      DFMS_MINIO_SECRET_KEY: ${DFMS_MINIO_SECRET_KEY:-minioadmin123}
+    volumes:
+      - ../configs/config.prod.yaml:/app/configs/config.yaml:ro
+      - ../secrets:/app/secrets:ro
+    networks:
+      - dfms-backend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+# ─── Networks ──────────────────────────────────────────────
+# Two-tier network isolation:
+#   frontend: Traefik ↔ API Gateway (exposed to outside)
+#   backend:  All services ↔ infrastructure (internal only)
+networks:
+  dfms-frontend:
+    driver: bridge
+  dfms-backend:
+    driver: bridge
+    internal: true  # No external access to backend network
+
+# ─── Volumes ──────────────────────────────────────────────
+volumes:
+  pgdata:
+  redis_data:
+  minio_data1:
+  minio_data2:
+  minio_data3:
+  minio_data4:
+  prometheus_data:
+  tempo_data:
+  grafana_data:
