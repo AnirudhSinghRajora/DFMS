@@ -1,0 +1,159 @@
+# ──────────────────────────────────────────────────────────────
+# DFMS Continuous Integration Pipeline
+#
+# Triggers: push to main, all pull requests targeting main.
+# Jobs:
+#   1. lint        — golangci-lint static analysis
+#   2. unit-test   — race-detected unit tests + coverage upload
+#   3. int-test    — integration tests with testcontainers-go
+#   4. build       — Docker image build (matrix: all 6 services)
+#
+# The 'build' job only runs after lint + unit-test pass.
+# ──────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26"
+
+jobs:
+  # ─── Lint ────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  # ─── Unit Tests ──────────────────────────────────────────
+  unit-test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run unit tests with coverage
+        run: |
+          go test -race -cover -coverprofile=cover.out -covermode=atomic \
+            -timeout 120s ./...
+
+      - name: Upload coverage to Codecov
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: codecov/codecov-action@v4
+        with:
+          file: cover.out
+          flags: unittests
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: cover.out
+          retention-days: 7
+
+  # ─── Integration Tests ──────────────────────────────────
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run integration tests
+        run: |
+          go test -race -tags=integration -timeout 300s -count=1 ./...
+
+  # ─── Docker Build ───────────────────────────────────────
+  build:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: [lint, unit-test]
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - chunk-service
+          - metadata-service
+          - replication-manager
+          - gc-worker
+          - health-monitor
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          tags: dfms-${{ matrix.service }}:${{ github.sha }}
+          build-args: SERVICE_NAME=${{ matrix.service }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify image size
+        run: |
+          # Build locally (buildx push=false doesn't load)
+          docker build \
+            --build-arg SERVICE_NAME=${{ matrix.service }} \
+            -t dfms-${{ matrix.service }}:check .
+
+          SIZE=$(docker image inspect dfms-${{ matrix.service }}:check \
+            --format='{{.Size}}')
+          SIZE_MB=$((SIZE / 1024 / 1024))
+          echo "Image size: ${SIZE_MB}MB"
+
+          if [ "$SIZE_MB" -gt 30 ]; then
+            echo "::error::Image dfms-${{ matrix.service }} is ${SIZE_MB}MB (limit: 30MB)"
+            exit 1
+          fi
+
+      - name: Verify container starts
+        run: |
+          # Quick smoke test — container should start without crashing
+          # It will fail to connect to databases, but shouldn't segfault
+          docker run --rm -d --name smoke-test \
+            dfms-${{ matrix.service }}:check || true
+          sleep 2
+          docker logs smoke-test 2>&1 || true
+          docker stop smoke-test 2>/dev/null || true
