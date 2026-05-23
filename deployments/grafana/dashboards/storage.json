@@ -1,0 +1,105 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "panels": [
+    {
+      "title": "Total Storage Used",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "dfms_storage_bytes_used",
+          "legendFormat": "Bytes Used",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" }
+      }
+    },
+    {
+      "title": "Dedup Ratio",
+      "type": "gauge",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "dfms_dedup_hits_total / (dfms_dedup_hits_total + dfms_dedup_misses_total) * 100",
+          "legendFormat": "Dedup %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "min": 0, "max": 100,
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "yellow", "value": 30 },
+              { "color": "green", "value": 60 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Storage Nodes",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        {
+          "expr": "dfms_storage_nodes_total",
+          "legendFormat": "Total Nodes",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "GC Chunks Collected (Rate)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "targets": [
+        {
+          "expr": "rate(dfms_gc_chunks_collected_total[5m])",
+          "legendFormat": "Chunks/s",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "GC Bytes Reclaimed",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "targets": [
+        {
+          "expr": "rate(dfms_gc_bytes_reclaimed_total[5m])",
+          "legendFormat": "Bytes/s Reclaimed",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "Bps" }
+      }
+    },
+    {
+      "title": "Dedup Hits vs Misses",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 14 },
+      "targets": [
+        {
+          "expr": "rate(dfms_dedup_hits_total[5m])",
+          "legendFormat": "Dedup Hits/s",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(dfms_dedup_misses_total[5m])",
+          "legendFormat": "New Chunks/s",
+          "refId": "B"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["dfms", "storage"],
+  "time": { "from": "now-6h", "to": "now" },
+  "title": "DFMS Storage",
+  "uid": "dfms-storage"
+}
