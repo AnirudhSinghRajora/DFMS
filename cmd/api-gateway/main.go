@@ -675,17 +675,17 @@ func downloadHandler(fileSvc *metadata.FileService, chunkClient pb.ChunkServiceC
 
 			// Stream only the range chunks
 			for _, chunk := range rangeResult.ChunkPlan {
-				stream, err := chunkClient.DownloadFile(c.Request.Context(), &pb.DownloadFileRequest{
+				stream, streamErr := chunkClient.DownloadFile(c.Request.Context(), &pb.DownloadFileRequest{
 					ChunkHashes: []string{chunk.Hash},
 				})
-				if err != nil {
+				if streamErr != nil {
 					break
 				}
 
 				var bytesRead int64
 				for {
-					resp, err := stream.Recv()
-					if err != nil {
+					resp, recvErr := stream.Recv()
+					if recvErr != nil {
 						break
 					}
 
