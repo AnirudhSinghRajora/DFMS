@@ -376,4 +376,3 @@ func streamChunksToResponse(c *gin.Context, chunkClient pb.ChunkServiceClient, h
 // Ensure unused import warnings don't fire.
 var _ = observability.ActiveUploads
 var _ = zap.String
-

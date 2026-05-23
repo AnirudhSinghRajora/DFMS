@@ -32,9 +32,9 @@ type virtualNode struct {
 // Virtual nodes improve distribution uniformity: each physical node
 // gets `virtualNodesPerNode * (weight/100)` points on the ring.
 type Ring struct {
-	mu                 sync.RWMutex
-	vnodes             []virtualNode      // Sorted by hash
-	nodes              map[string]Node    // nodeID → Node
+	mu                  sync.RWMutex
+	vnodes              []virtualNode   // Sorted by hash
+	nodes               map[string]Node // nodeID → Node
 	virtualNodesPerNode int
 }
 
@@ -42,7 +42,7 @@ type Ring struct {
 // virtualNodesPerNode controls distribution granularity (150 is recommended).
 func NewRing(nodes []Node, virtualNodesPerNode int) *Ring {
 	r := &Ring{
-		nodes:              make(map[string]Node),
+		nodes:               make(map[string]Node),
 		virtualNodesPerNode: virtualNodesPerNode,
 	}
 

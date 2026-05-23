@@ -57,12 +57,12 @@ type ChunkDeletedEvent struct {
 // NodeHealthEvent is published when a storage node's health status changes.
 // Consumed by the Replication Manager to trigger re-replication on failure.
 type NodeHealthEvent struct {
-	NodeID     string `json:"node_id"`
-	NodeName   string `json:"node_name"`
-	OldStatus  string `json:"old_status"`
-	NewStatus  string `json:"new_status"` // "healthy", "degraded", "offline"
-	Endpoint   string `json:"endpoint"`
-	LatencyMs  int64  `json:"latency_ms,omitempty"`
+	NodeID    string `json:"node_id"`
+	NodeName  string `json:"node_name"`
+	OldStatus string `json:"old_status"`
+	NewStatus string `json:"new_status"` // "healthy", "degraded", "offline"
+	Endpoint  string `json:"endpoint"`
+	LatencyMs int64  `json:"latency_ms,omitempty"`
 }
 
 // NewEnvelope creates an Envelope for the given event type and payload.

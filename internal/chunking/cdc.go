@@ -35,7 +35,7 @@ type CDCConfig struct {
 //   - 4MB max bounds memory usage per chunk
 func DefaultConfig() CDCConfig {
 	return CDCConfig{
-		MinSize: 256 * 1024,     // 256 KB
+		MinSize: 256 * 1024,      // 256 KB
 		AvgSize: 1 * 1024 * 1024, // 1 MB
 		MaxSize: 4 * 1024 * 1024, // 4 MB
 	}

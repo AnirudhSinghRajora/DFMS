@@ -126,13 +126,13 @@ func (s *ChunkServer) UploadFile(stream pb.ChunkService_UploadFileServer) error 
 
 	// 4. Process chunks: dedup check + upload new ones concurrently
 	var (
-		chunks    []*pb.ChunkInfo
-		mu        sync.Mutex
-		newCount  int32
+		chunks     []*pb.ChunkInfo
+		mu         sync.Mutex
+		newCount   int32
 		dedupCount int32
-		wg        sync.WaitGroup
-		sem       = make(chan struct{}, maxUploadWorkers) // Concurrency limiter
-		uploadErr error
+		wg         sync.WaitGroup
+		sem        = make(chan struct{}, maxUploadWorkers) // Concurrency limiter
+		uploadErr  error
 	)
 
 	for result := range chunkResults {

@@ -17,10 +17,10 @@ import (
 )
 
 const (
-	multipartPrefix    = "multipart:"    // Redis key prefix for upload sessions
-	multipartPartsKey  = "parts:"        // Redis hash key for parts within a session
-	multipartSessionTTL = 24 * time.Hour // Auto-expire abandoned uploads
-	minPartSize         = 5 * 1024 * 1024  // 5 MB minimum per part
+	multipartPrefix     = "multipart:"      // Redis key prefix for upload sessions
+	multipartPartsKey   = "parts:"          // Redis hash key for parts within a session
+	multipartSessionTTL = 24 * time.Hour    // Auto-expire abandoned uploads
+	minPartSize         = 5 * 1024 * 1024   // 5 MB minimum per part
 	maxPartSize         = 500 * 1024 * 1024 // 500 MB maximum per part
 	maxPartNumber       = 10000             // Maximum parts per upload
 )
@@ -45,11 +45,11 @@ type PartInfo struct {
 // Parts are stored temporarily in MinIO's temp-uploads bucket,
 // session state is tracked in Redis with 24h TTL for auto-cleanup.
 type MultipartService struct {
-	cache    *cache.Client
-	store    storage.ObjectStore
+	cache     *cache.Client
+	store     storage.ObjectStore
 	tempStore storage.ObjectStore // temp-uploads bucket
-	fileSvc  *FileService
-	logger   *zap.Logger
+	fileSvc   *FileService
+	logger    *zap.Logger
 }
 
 // NewMultipartService creates a new multipart upload service.

@@ -348,7 +348,7 @@ func (r *PgxRepository) GetManifest(ctx context.Context, fileID string) ([]Manif
 	return entries, nil
 }
 
-func (r *PgxRepository) GetStorageUsage(ctx context.Context, userID string) (used int64, quota int64, err error) {
+func (r *PgxRepository) GetStorageUsage(ctx context.Context, userID string) (used, quota int64, err error) {
 	err = r.pool.QueryRow(ctx,
 		`SELECT storage_used, storage_quota FROM users WHERE id = $1`,
 		userID,

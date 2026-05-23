@@ -244,20 +244,20 @@ func (s *FileService) Search(ctx context.Context, userID string, q *SearchQuery)
 
 // RangeDownloadResult contains the data needed to serve a partial download.
 type RangeDownloadResult struct {
-	FileName     string
-	MimeType     string
-	FileSize     int64     // Total file size
-	RangeStart   int64     // Requested range start
-	RangeEnd     int64     // Requested range end (inclusive)
-	ContentLen   int64     // Bytes in this response
-	ChunkPlan    []RangeChunk
+	FileName   string
+	MimeType   string
+	FileSize   int64 // Total file size
+	RangeStart int64 // Requested range start
+	RangeEnd   int64 // Requested range end (inclusive)
+	ContentLen int64 // Bytes in this response
+	ChunkPlan  []RangeChunk
 }
 
 // RangeChunk describes which bytes to read from a specific chunk.
 type RangeChunk struct {
-	Hash       string
-	SkipBytes  int64 // Bytes to skip at start of this chunk
-	ReadBytes  int64 // Bytes to read from this chunk
+	Hash      string
+	SkipBytes int64 // Bytes to skip at start of this chunk
+	ReadBytes int64 // Bytes to read from this chunk
 }
 
 // PrepareRangeDownload calculates which chunks (and byte offsets within them)

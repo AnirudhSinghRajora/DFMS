@@ -535,10 +535,10 @@ func storageUsageHandler(db *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{
-			"used":       storageUsed,
-			"quota":      storageQuota,
-			"available":  storageQuota - storageUsed,
-			"used_pct":   float64(storageUsed) / float64(storageQuota) * 100,
+			"used":      storageUsed,
+			"quota":     storageQuota,
+			"available": storageQuota - storageUsed,
+			"used_pct":  float64(storageUsed) / float64(storageQuota) * 100,
 		})
 	}
 }
@@ -588,8 +588,12 @@ func listFilesHandler(fileSvc *metadata.FileService) gin.HandlerFunc {
 		userID := auth.GetUserID(c)
 		page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 		pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-		if page < 1 { page = 1 }
-		if pageSize < 1 || pageSize > 100 { pageSize = 20 }
+		if page < 1 {
+			page = 1
+		}
+		if pageSize < 1 || pageSize > 100 {
+			pageSize = 20
+		}
 
 		resp, err := fileSvc.ListFiles(c.Request.Context(), userID, page, pageSize)
 		if err != nil {
@@ -671,7 +675,7 @@ func downloadHandler(fileSvc *metadata.FileService, chunkClient pb.ChunkServiceC
 
 			// Stream only the range chunks
 			for _, chunk := range rangeResult.ChunkPlan {
-			stream, err := chunkClient.DownloadFile(c.Request.Context(), &pb.DownloadFileRequest{
+				stream, err := chunkClient.DownloadFile(c.Request.Context(), &pb.DownloadFileRequest{
 					ChunkHashes: []string{chunk.Hash},
 				})
 				if err != nil {
@@ -837,8 +841,7 @@ func listNodesPlaceholder() gin.HandlerFunc {
 
 // isDuplicateKeyError checks if a PostgreSQL error is a unique constraint violation.
 func isDuplicateKeyError(err error) bool {
-	return err != nil && (
-		contains(err.Error(), "23505") ||
+	return err != nil && (contains(err.Error(), "23505") ||
 		contains(err.Error(), "duplicate key"))
 }
 

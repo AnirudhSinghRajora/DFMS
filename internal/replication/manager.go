@@ -23,11 +23,11 @@ const (
 // Manager consumes chunk.created events from Kafka and replicates
 // chunks across storage nodes according to the consistent hash ring.
 type Manager struct {
-	ring     *Ring
-	store    storage.ObjectStore
-	pool     *pgxpool.Pool
-	producer *events.Producer
-	logger   *zap.Logger
+	ring       *Ring
+	store      storage.ObjectStore
+	pool       *pgxpool.Pool
+	producer   *events.Producer
+	logger     *zap.Logger
 	replFactor int
 }
 

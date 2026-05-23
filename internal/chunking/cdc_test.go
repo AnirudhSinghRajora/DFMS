@@ -26,7 +26,7 @@ func TestSplit_BasicFile(t *testing.T) {
 	ctx := context.Background()
 	results := c.Split(ctx, bytes.NewReader(data))
 
-	var chunks []chunking.ChunkResult
+	var chunks []chunking.ChunkResult //nolint:prealloc // length unknown: reading from channel
 	for r := range results {
 		require.NoError(t, r.Err)
 		chunks = append(chunks, r)
@@ -58,7 +58,7 @@ func TestSplit_EmptyInput(t *testing.T) {
 
 	results := c.Split(context.Background(), bytes.NewReader(nil))
 
-	var chunks []chunking.ChunkResult
+	var chunks []chunking.ChunkResult //nolint:prealloc // length unknown: reading from channel
 	for r := range results {
 		if r.Err != nil {
 			break
@@ -76,7 +76,7 @@ func TestSplit_TinyFile(t *testing.T) {
 
 	results := c.Split(context.Background(), bytes.NewReader(data))
 
-	var chunks []chunking.ChunkResult
+	var chunks []chunking.ChunkResult //nolint:prealloc // length unknown: reading from channel
 	for r := range results {
 		require.NoError(t, r.Err)
 		chunks = append(chunks, r)
@@ -183,7 +183,7 @@ func TestNewChunker_DefaultConfig(t *testing.T) {
 func collectHashes(t *testing.T, c *chunking.Chunker, data []byte) []string {
 	t.Helper()
 	results := c.Split(context.Background(), bytes.NewReader(data))
-	var hashes []string
+	var hashes []string //nolint:prealloc // length unknown: reading from channel
 	for r := range results {
 		if r.Err != nil {
 			break

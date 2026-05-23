@@ -62,7 +62,7 @@ func TestAssemble_EmptyReaderList(t *testing.T) {
 type errorReader struct{ err error }
 
 func (r *errorReader) Read([]byte) (int, error) { return 0, r.err }
-func (r *errorReader) Close() error              { return nil }
+func (r *errorReader) Close() error             { return nil }
 
 // trackCloser tracks whether Close was called.
 type trackCloser struct {

@@ -43,7 +43,7 @@ func WriteTestKeys(t *testing.T) (privPath, pubPath string) {
 		t.Fatalf("Failed to marshal private key: %v", err)
 	}
 	privPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privBytes})
-	if err := os.WriteFile(privPath, privPEM, 0o600); err != nil {
+	if err = os.WriteFile(privPath, privPEM, 0o600); err != nil {
 		t.Fatalf("Failed to write private key: %v", err)
 	}
 
@@ -54,7 +54,7 @@ func WriteTestKeys(t *testing.T) (privPath, pubPath string) {
 		t.Fatalf("Failed to marshal public key: %v", err)
 	}
 	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubBytes})
-	if err := os.WriteFile(pubPath, pubPEM, 0o600); err != nil {
+	if err = os.WriteFile(pubPath, pubPEM, 0o600); err != nil {
 		t.Fatalf("Failed to write public key: %v", err)
 	}
 
