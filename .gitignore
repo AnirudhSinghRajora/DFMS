@@ -1,0 +1,57 @@
+# Binaries
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, profiling, coverage
+*.test
+*.out
+*.prof
+cover.out
+coverage.html
+
+# Vendor (we use Go modules, but just in case)
+vendor/
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Secrets and Configs
+secrets/
+*.pem
+*.key
+*.crt
+.env
+.env.*
+!.env.example
+configs/config.dev.yaml
+configs/config.prod.yaml
+
+# Context backups / Temporary AI contexts
+context/
+Contest/
+.gemini/
+
+# Docker volumes and temp data
+data/
+minio_data*/
+redis_data/
+pgdata/
+prometheus_data/
+tempo_data/
+grafana_data/
+
+# Build output
+dist/
+build/
+
+# OS
+Thumbs.db
