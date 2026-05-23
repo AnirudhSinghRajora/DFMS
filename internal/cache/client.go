@@ -99,4 +99,3 @@ func (c *Client) HGetAll(ctx context.Context, key string) (map[string]string, er
 func (c *Client) Expire(ctx context.Context, key string, ttl time.Duration) error {
 	return c.rdb.Expire(ctx, key, ttl).Err()
 }
-

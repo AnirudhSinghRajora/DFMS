@@ -32,7 +32,7 @@ type Claims struct {
 
 // RefreshClaims represents the JWT claims for refresh tokens.
 type RefreshClaims struct {
-	UserID    string `json:"sub"`
+	UserID      string `json:"sub"`
 	TokenFamily string `json:"family"` // for rotation detection
 	jwt.RegisteredClaims
 }

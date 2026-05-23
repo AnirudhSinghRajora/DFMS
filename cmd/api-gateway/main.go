@@ -75,7 +75,7 @@ func main() {
 
 	// ── Initialize Database ─────────────────────────────────
 	ctx := context.Background()
-	dbPool, err := database.NewPool(ctx, cfg.Database)
+	dbPool, err := database.NewPool(ctx, &cfg.Database)
 	if err != nil {
 		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
@@ -119,7 +119,7 @@ func main() {
 	fileSvc := metadata.NewFileService(repo, redisClient, chunkClient, producer, logger)
 
 	// ── Initialize Multipart Upload Service ─────────────────
-	minioClient, err := storage.NewMinIOClient(cfg.MinIO)
+	minioClient, err := storage.NewMinIOClient(&cfg.MinIO)
 	if err != nil {
 		logger.Fatal("Failed to connect to MinIO for multipart", zap.Error(err))
 	}
@@ -452,7 +452,7 @@ func loginHandler(db *pgxpool.Pool, jwtService *auth.JWTService) gin.HandlerFunc
 		}
 
 		// Verify password
-		if err := auth.VerifyPassword(passwordHash, req.Password); err != nil {
+		if verifyErr := auth.VerifyPassword(passwordHash, req.Password); verifyErr != nil {
 			apiErr := apierrors.NewUnauthorized(apierrors.CodeAuthInvalidCredentials, "Invalid email or password")
 			c.JSON(apiErr.StatusCode, apiErr.ToResponse(c.GetString("request_id")))
 			return
@@ -658,9 +658,9 @@ func downloadHandler(fileSvc *metadata.FileService, chunkClient pb.ChunkServiceC
 				return
 			}
 
-			rangeResult, err := fileSvc.PrepareRangeDownload(c.Request.Context(), userID, fileID, rangeStart, rangeEnd)
-			if err != nil {
-				apiErr := apierrors.NewInternal(err)
+			rangeResult, rangeErr := fileSvc.PrepareRangeDownload(c.Request.Context(), userID, fileID, rangeStart, rangeEnd)
+			if rangeErr != nil {
+				apiErr := apierrors.NewInternal(rangeErr)
 				c.JSON(apiErr.StatusCode, apiErr.ToResponse(c.GetString("request_id")))
 				return
 			}

@@ -177,7 +177,7 @@ func (m *MultipartService) CompleteUpload(ctx context.Context, uploadID string) 
 	parts := make([]PartInfo, 0, len(partsMap))
 	for _, v := range partsMap {
 		var p PartInfo
-		if err := json.Unmarshal([]byte(v), &p); err != nil {
+		if unmarshalErr := json.Unmarshal([]byte(v), &p); unmarshalErr != nil {
 			continue
 		}
 		parts = append(parts, p)
@@ -188,13 +188,13 @@ func (m *MultipartService) CompleteUpload(ctx context.Context, uploadID string) 
 	readers := make([]io.Reader, len(parts))
 	closers := make([]io.ReadCloser, len(parts))
 	for i, p := range parts {
-		rc, _, err := m.tempStore.GetChunk(ctx, p.Key)
-		if err != nil {
+		rc, _, getErr := m.tempStore.GetChunk(ctx, p.Key)
+		if getErr != nil {
 			// Close any already-opened readers
 			for j := 0; j < i; j++ {
 				closers[j].Close()
 			}
-			return nil, fmt.Errorf("read part %d: %w", p.PartNum, err)
+			return nil, fmt.Errorf("read part %d: %w", p.PartNum, getErr)
 		}
 		closers[i] = rc
 		readers[i] = rc
@@ -245,10 +245,10 @@ func (m *MultipartService) AbortUpload(ctx context.Context, uploadID, userID str
 		return fmt.Errorf("get parts for cleanup: %w", err)
 	}
 
-	var parts []PartInfo
+	parts := make([]PartInfo, 0, len(partsMap))
 	for _, v := range partsMap {
 		var p PartInfo
-		if err := json.Unmarshal([]byte(v), &p); err != nil {
+		if unmarshalErr := json.Unmarshal([]byte(v), &p); unmarshalErr != nil {
 			continue
 		}
 		parts = append(parts, p)

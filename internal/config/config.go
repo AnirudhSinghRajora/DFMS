@@ -46,7 +46,7 @@ type DatabaseConfig struct {
 }
 
 // DSN returns the PostgreSQL connection string.
-func (d DatabaseConfig) DSN() string {
+func (d *DatabaseConfig) DSN() string {
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		d.User, d.Password, d.Host, d.Port, d.Database, d.SSLMode,
@@ -63,12 +63,12 @@ type RedisConfig struct {
 
 // MinIOConfig holds MinIO storage settings.
 type MinIOConfig struct {
-	Endpoints  []string `mapstructure:"endpoints"`
-	AccessKey  string   `mapstructure:"access_key"`
-	SecretKey  string   `mapstructure:"secret_key"`
-	UseSSL     bool     `mapstructure:"use_ssl"`
-	ChunkBucket string  `mapstructure:"chunk_bucket"`
-	TempBucket  string  `mapstructure:"temp_bucket"`
+	Endpoints   []string `mapstructure:"endpoints"`
+	AccessKey   string   `mapstructure:"access_key"`
+	SecretKey   string   `mapstructure:"secret_key"`
+	UseSSL      bool     `mapstructure:"use_ssl"`
+	ChunkBucket string   `mapstructure:"chunk_bucket"`
+	TempBucket  string   `mapstructure:"temp_bucket"`
 }
 
 // KafkaConfig holds Kafka settings.

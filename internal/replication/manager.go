@@ -54,7 +54,7 @@ func NewManager(
 // It determines replica placement via the hash ring and copies the chunk
 // to each target node. In dev (single MinIO), this updates the
 // storage_nodes metadata in PostgreSQL to simulate multi-node placement.
-func (m *Manager) HandleChunkCreated(ctx context.Context, msg kafka.Message) error {
+func (m *Manager) HandleChunkCreated(ctx context.Context, msg kafka.Message) error { //nolint:gocritic // msg must be by-value to satisfy events.MessageHandler interface
 	// Deserialize the event envelope
 	var envelope events.Envelope
 	if err := json.Unmarshal(msg.Value, &envelope); err != nil {
@@ -155,7 +155,7 @@ func (m *Manager) HandleChunkCreated(ctx context.Context, msg kafka.Message) err
 // HandleNodeHealthChanged processes a node.health.changed event.
 // When a node goes offline, it identifies all chunks on that node
 // and triggers re-replication to maintain the replication factor.
-func (m *Manager) HandleNodeHealthChanged(ctx context.Context, msg kafka.Message) error {
+func (m *Manager) HandleNodeHealthChanged(ctx context.Context, msg kafka.Message) error { //nolint:gocritic // msg must be by-value to satisfy events.MessageHandler interface
 	var envelope events.Envelope
 	if err := json.Unmarshal(msg.Value, &envelope); err != nil {
 		return nil

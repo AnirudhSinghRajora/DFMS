@@ -22,7 +22,7 @@ type SearchQuery struct {
 // SearchFiles performs a full-text search on file names with optional filters.
 // Uses PostgreSQL's pg_trgm GIN index for efficient ILIKE matching.
 // Results are paginated and only return active files (not directories).
-func (r *PgxRepository) SearchFiles(ctx context.Context, userID string, q SearchQuery) ([]*File, int64, error) {
+func (r *PgxRepository) SearchFiles(ctx context.Context, userID string, q *SearchQuery) ([]*File, int64, error) {
 	if q.PageSize <= 0 {
 		q.PageSize = 20
 	}
@@ -41,8 +41,7 @@ func (r *PgxRepository) SearchFiles(ctx context.Context, userID string, q Search
 	args = append(args, userID)
 	argIdx++
 
-	conditions = append(conditions, "status = 'active'")
-	conditions = append(conditions, "is_directory = false")
+	conditions = append(conditions, "status = 'active'", "is_directory = false")
 
 	// Text search on name (uses pg_trgm GIN index)
 	if q.Query != "" {

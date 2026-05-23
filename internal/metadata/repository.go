@@ -103,7 +103,7 @@ type Repository interface {
 	VerifyFolderOwnership(ctx context.Context, userID, folderID string) (*File, error)
 
 	// Search
-	SearchFiles(ctx context.Context, userID string, q SearchQuery) ([]*File, int64, error)
+	SearchFiles(ctx context.Context, userID string, q *SearchQuery) ([]*File, int64, error)
 }
 
 // ── PostgreSQL Implementation ───────────────────────────────
@@ -348,9 +348,8 @@ func (r *PgxRepository) GetManifest(ctx context.Context, fileID string) ([]Manif
 	return entries, nil
 }
 
-func (r *PgxRepository) GetStorageUsage(ctx context.Context, userID string) (int64, int64, error) {
-	var used, quota int64
-	err := r.pool.QueryRow(ctx,
+func (r *PgxRepository) GetStorageUsage(ctx context.Context, userID string) (used int64, quota int64, err error) {
+	err = r.pool.QueryRow(ctx,
 		`SELECT storage_used, storage_quota FROM users WHERE id = $1`,
 		userID,
 	).Scan(&used, &quota)

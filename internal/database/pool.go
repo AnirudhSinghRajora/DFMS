@@ -13,7 +13,7 @@ import (
 
 // NewPool creates and validates a new PostgreSQL connection pool.
 // It uses pgx's native connection pooling for high performance.
-func NewPool(ctx context.Context, cfg config.DatabaseConfig) (*pgxpool.Pool, error) {
+func NewPool(ctx context.Context, cfg *config.DatabaseConfig) (*pgxpool.Pool, error) {
 	poolConfig, err := pgxpool.ParseConfig(cfg.DSN())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse database config: %w", err)

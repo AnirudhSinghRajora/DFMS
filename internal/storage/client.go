@@ -15,7 +15,7 @@ import (
 
 // NewMinIOClient creates a new MinIO client and ensures the required
 // buckets exist. This is called during service startup.
-func NewMinIOClient(cfg config.MinIOConfig) (*minio.Client, error) {
+func NewMinIOClient(cfg *config.MinIOConfig) (*minio.Client, error) {
 	if len(cfg.Endpoints) == 0 {
 		return nil, fmt.Errorf("no MinIO endpoints configured")
 	}

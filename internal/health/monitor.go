@@ -23,7 +23,7 @@ type Monitor struct {
 	pool     *pgxpool.Pool
 	producer *events.Producer
 	cfg      config.HealthMonitorConfig
-	minioCfg config.MinIOConfig
+	minioCfg *config.MinIOConfig
 	logger   *zap.Logger
 }
 
@@ -32,7 +32,7 @@ func NewMonitor(
 	pool *pgxpool.Pool,
 	producer *events.Producer,
 	cfg config.HealthMonitorConfig,
-	minioCfg config.MinIOConfig,
+	minioCfg *config.MinIOConfig,
 	logger *zap.Logger,
 ) *Monitor {
 	return &Monitor{
@@ -123,8 +123,8 @@ func (m *Monitor) checkNode(ctx context.Context, node nodeRecord) {
 
 	if newStatus == "healthy" {
 		// Test 1: Bucket exists (connectivity)
-		_, err := client.BucketExists(probeCtx, m.minioCfg.ChunkBucket)
-		if err != nil {
+		_, bucketErr := client.BucketExists(probeCtx, m.minioCfg.ChunkBucket)
+		if bucketErr != nil {
 			newStatus = "offline"
 		}
 	}
@@ -133,15 +133,15 @@ func (m *Monitor) checkNode(ctx context.Context, node nodeRecord) {
 		// Test 2: Write a small probe object
 		probeKey := fmt.Sprintf("_health_probe/%s", node.ID)
 		probeData := []byte("health-check-probe")
-		_, err := client.PutObject(probeCtx, m.minioCfg.TempBucket, probeKey,
+		_, putErr := client.PutObject(probeCtx, m.minioCfg.TempBucket, probeKey,
 			bytes.NewReader(probeData), int64(len(probeData)),
 			minio.PutObjectOptions{ContentType: "text/plain"})
-		if err != nil {
+		if putErr != nil {
 			newStatus = "degraded"
 		} else {
 			// Test 3: Read it back
-			obj, err := client.GetObject(probeCtx, m.minioCfg.TempBucket, probeKey, minio.GetObjectOptions{})
-			if err != nil {
+			obj, getErr := client.GetObject(probeCtx, m.minioCfg.TempBucket, probeKey, minio.GetObjectOptions{})
+			if getErr != nil {
 				newStatus = "degraded"
 			} else {
 				obj.Close()

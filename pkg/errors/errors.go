@@ -19,11 +19,11 @@ const (
 	CodeAuthUserExists         = "AUTH_USER_EXISTS"
 
 	// File errors
-	CodeFileNotFound     = "FILE_NOT_FOUND"
-	CodeFileAlreadyExists = "FILE_ALREADY_EXISTS"
-	CodeFileUploadFailed = "FILE_UPLOAD_FAILED"
+	CodeFileNotFound       = "FILE_NOT_FOUND"
+	CodeFileAlreadyExists  = "FILE_ALREADY_EXISTS"
+	CodeFileUploadFailed   = "FILE_UPLOAD_FAILED"
 	CodeFileDownloadFailed = "FILE_DOWNLOAD_FAILED"
-	CodeFileTooLarge     = "FILE_TOO_LARGE"
+	CodeFileTooLarge       = "FILE_TOO_LARGE"
 
 	// Storage errors
 	CodeStorageNodeUnavailable = "STORAGE_NODE_UNAVAILABLE"
@@ -41,7 +41,7 @@ const (
 	CodeValidationFailed = "VALIDATION_FAILED"
 
 	// Internal errors
-	CodeInternalError = "INTERNAL_ERROR"
+	CodeInternalError      = "INTERNAL_ERROR"
 	CodeServiceUnavailable = "SERVICE_UNAVAILABLE"
 )
 

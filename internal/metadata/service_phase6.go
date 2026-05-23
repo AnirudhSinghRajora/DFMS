@@ -236,7 +236,7 @@ func (s *FileService) DeleteFolder(ctx context.Context, userID, folderID string)
 // ── Search Service Method ───────────────────────────────────
 
 // Search performs a file search with filters.
-func (s *FileService) Search(ctx context.Context, userID string, q SearchQuery) ([]*File, int64, error) {
+func (s *FileService) Search(ctx context.Context, userID string, q *SearchQuery) ([]*File, int64, error) {
 	return s.repo.SearchFiles(ctx, userID, q)
 }
 
@@ -288,7 +288,7 @@ func (s *FileService) PrepareRangeDownload(ctx context.Context, userID, fileID s
 		return nil, fmt.Errorf("get manifest: %w", err)
 	}
 
-	var plan []RangeChunk
+	plan := make([]RangeChunk, 0, len(manifest))
 	for _, entry := range manifest {
 		chunkStart := entry.ByteOffset
 		chunkEnd := entry.ByteOffset + entry.ChunkSize - 1

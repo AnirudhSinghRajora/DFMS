@@ -41,7 +41,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	pool, err := database.NewPool(ctx, cfg.Database)
+	pool, err := database.NewPool(ctx, &cfg.Database)
 	if err != nil {
 		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
@@ -50,7 +50,7 @@ func main() {
 	producer := events.NewProducer(cfg.Kafka.Brokers, logger)
 	defer func() { _ = producer.Close() }()
 
-	monitor := health.NewMonitor(pool, producer, cfg.HealthMonitor, cfg.MinIO, logger)
+	monitor := health.NewMonitor(pool, producer, cfg.HealthMonitor, &cfg.MinIO, logger)
 
 	// Run monitor in background
 	go func() {

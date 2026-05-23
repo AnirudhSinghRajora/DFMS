@@ -331,7 +331,7 @@ func searchHandler(fileSvc *metadata.FileService) gin.HandlerFunc {
 		q.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
 		q.PageSize, _ = strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
-		files, total, err := fileSvc.Search(c.Request.Context(), userID, q)
+		files, total, err := fileSvc.Search(c.Request.Context(), userID, &q)
 		if err != nil {
 			apiErr := apierrors.NewInternal(err)
 			c.JSON(apiErr.StatusCode, apiErr.ToResponse(c.GetString("request_id")))

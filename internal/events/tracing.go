@@ -61,7 +61,7 @@ func (c *kafkaHeaderCarrier) Keys() []string {
 //	ctx := events.ExtractTraceContext(context.Background(), msg)
 //	ctx, span := tracer.Start(ctx, "ProcessChunkCreated")
 //	defer span.End()
-func ExtractTraceContext(ctx context.Context, msg kafka.Message) context.Context {
+func ExtractTraceContext(ctx context.Context, msg kafka.Message) context.Context { //nolint:gocritic // msg by-value matches consumer callback pattern
 	propagator := otel.GetTextMapPropagator()
 	carrier := &kafkaHeaderCarrier{msg: &msg}
 	return propagator.Extract(ctx, carrier)

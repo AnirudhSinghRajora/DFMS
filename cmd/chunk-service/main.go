@@ -63,7 +63,7 @@ func main() {
 	}
 
 	// ── Initialize MinIO ────────────────────────────────────
-	minioClient, err := storage.NewMinIOClient(cfg.MinIO)
+	minioClient, err := storage.NewMinIOClient(&cfg.MinIO)
 	if err != nil {
 		logger.Fatal("Failed to connect to MinIO", zap.Error(err))
 	}

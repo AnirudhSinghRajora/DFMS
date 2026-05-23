@@ -169,10 +169,10 @@ func (c *Collector) sweepMarked(ctx context.Context) int {
 		}
 
 		// Delete from MinIO
-		if err := c.store.DeleteChunk(ctx, hash); err != nil {
+		if delErr := c.store.DeleteChunk(ctx, hash); delErr != nil {
 			c.logger.Error("Failed to delete chunk from MinIO",
 				zap.String("hash", hash[:12]),
-				zap.Error(err),
+				zap.Error(delErr),
 			)
 			continue
 		}

@@ -16,7 +16,7 @@ func SHA256Hash(data []byte) string {
 // SHA256Stream computes the SHA-256 digest of data read from an io.Reader
 // without buffering the entire content in memory. Returns the hex digest
 // and the total number of bytes read.
-func SHA256Stream(r io.Reader) (string, int64, error) {
+func SHA256Stream(r io.Reader) (hexDigest string, bytesRead int64, err error) {
 	h := sha256.New()
 	n, err := io.Copy(h, r)
 	if err != nil {

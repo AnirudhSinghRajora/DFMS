@@ -27,7 +27,7 @@ func NewConsumer(brokers []string, groupID, topic string, logger *zap.Logger) *C
 		Brokers:     brokers,
 		GroupID:     groupID,
 		Topic:       topic,
-		MinBytes:    1,              // Fetch as soon as 1 byte is available
+		MinBytes:    1,                // Fetch as soon as 1 byte is available
 		MaxBytes:    10 * 1024 * 1024, // 10MB max fetch
 		StartOffset: kafka.FirstOffset,
 		// CommitInterval = 0 means manual commit (we commit after each message)

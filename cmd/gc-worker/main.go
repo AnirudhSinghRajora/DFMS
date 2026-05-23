@@ -44,7 +44,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	pool, err := database.NewPool(ctx, cfg.Database)
+	pool, err := database.NewPool(ctx, &cfg.Database)
 	if err != nil {
 		logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
@@ -56,7 +56,7 @@ func main() {
 	}
 	defer func() { _ = redisClient.Close() }()
 
-	minioClient, err := storage.NewMinIOClient(cfg.MinIO)
+	minioClient, err := storage.NewMinIOClient(&cfg.MinIO)
 	if err != nil {
 		logger.Fatal("Failed to connect to MinIO", zap.Error(err))
 	}

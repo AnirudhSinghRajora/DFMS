@@ -104,7 +104,7 @@ func (s *FileService) Upload(ctx context.Context, userID, fileName, mimeType str
 	}
 
 	// Send metadata as the first message
-	if err := stream.Send(&pb.UploadFileRequest{
+	err = stream.Send(&pb.UploadFileRequest{
 		Data: &pb.UploadFileRequest_Metadata{
 			Metadata: &pb.UploadMetadata{
 				FileName: fileName,
@@ -112,7 +112,8 @@ func (s *FileService) Upload(ctx context.Context, userID, fileName, mimeType str
 				MimeType: mimeType,
 			},
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, fmt.Errorf("send metadata: %w", err)
 	}
 
@@ -121,11 +122,12 @@ func (s *FileService) Upload(ctx context.Context, userID, fileName, mimeType str
 	for {
 		n, readErr := fileReader.Read(buf)
 		if n > 0 {
-			if err := stream.Send(&pb.UploadFileRequest{
+			err = stream.Send(&pb.UploadFileRequest{
 				Data: &pb.UploadFileRequest_ChunkData{
 					ChunkData: buf[:n],
 				},
-			}); err != nil {
+			})
+			if err != nil {
 				return nil, fmt.Errorf("send data: %w", err)
 			}
 		}
@@ -166,17 +168,18 @@ func (s *FileService) Upload(ctx context.Context, userID, fileName, mimeType str
 	}
 
 	var file *File
-	if existing != nil && existing.Status == "active" {
+	switch {
+	case existing != nil && existing.Status == "active":
 		// Mark the current active version as superseded
-		if err := s.repo.UpdateFileStatus(ctx, existing.ID, "superseded"); err != nil {
-			s.logger.Error("Failed to supersede previous version", zap.Error(err))
+		if updateErr := s.repo.UpdateFileStatus(ctx, existing.ID, "superseded"); updateErr != nil {
+			s.logger.Error("Failed to supersede previous version", zap.Error(updateErr))
 		}
 		// Create new version
 		file, err = s.repo.CreateFileWithVersion(ctx, params, existing.ParentID, existing.Version+1)
-	} else if existing != nil && existing.Status == "superseded" {
+	case existing != nil && existing.Status == "superseded":
 		// All versions were superseded (active was deleted), create next version
 		file, err = s.repo.CreateFileWithVersion(ctx, params, existing.ParentID, existing.Version+1)
-	} else {
+	default:
 		// No existing file — create version 1
 		file, err = s.repo.CreateFile(ctx, params)
 	}
@@ -185,7 +188,7 @@ func (s *FileService) Upload(ctx context.Context, userID, fileName, mimeType str
 	}
 
 	// Upsert chunks and build manifest
-	var manifest []ManifestEntry
+	manifest := make([]ManifestEntry, 0, len(resp.Chunks))
 	var byteOffset int64
 
 	for _, chunkInfo := range resp.Chunks {
