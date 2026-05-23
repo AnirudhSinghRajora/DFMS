@@ -1,0 +1,43 @@
+# Build artifacts
+bin/
+cover.out
+coverage.html
+
+# Version control
+.git
+.gitignore
+
+# Secrets (mounted at runtime, never baked in)
+secrets/
+
+# Tests & dev tooling
+tests/
+**/*_test.go
+.golangci.yml
+
+# IDE & editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation (not needed in image)
+docs/
+*.md
+LICENSE
+
+# CI/CD
+.github/
+
+# Docker
+Dockerfile
+.dockerignore
+deployments/
+
+# Context files
+context/
+
+# Temporary / OS files
+.DS_Store
+Thumbs.db
