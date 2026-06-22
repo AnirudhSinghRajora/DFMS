@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/AnirudhSinghRajora/DFMS/api/openapi"
 	pb "github.com/AnirudhSinghRajora/DFMS/api/proto/chunkpb"
 	"github.com/AnirudhSinghRajora/DFMS/internal/auth"
 	"github.com/AnirudhSinghRajora/DFMS/internal/cache"
@@ -98,7 +99,7 @@ func main() {
 	logger.Info("JWT service initialized", zap.String("issuer", cfg.JWT.Issuer))
 
 	// ── Initialize gRPC Client to ChunkService ──────────────
-	chunkAddr := fmt.Sprintf("localhost:%d", cfg.Server.GRPCPort)
+	chunkAddr := cfg.ChunkService.GRPCAddr
 	chunkConn, err := grpc.NewClient(chunkAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
@@ -152,6 +153,10 @@ func main() {
 	router.GET("/health", healthHandler())
 	router.GET("/ready", readinessHandler(dbPool, redisClient))
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	// ── API Documentation ────────────────────────────────
+	router.GET("/docs", docsHandler())
+	router.GET("/openapi.yaml", openAPISpecHandler())
 
 	// ── Public Routes (no auth) ─────────────────────────────
 	public := router.Group("/api/v1")
@@ -348,6 +353,41 @@ func readinessHandler(db *pgxpool.Pool, redis *cache.Client) gin.HandlerFunc {
 			"status": map[bool]string{true: "ready", false: "not_ready"}[ready],
 			"checks": checks,
 		})
+	}
+}
+
+// ── API Documentation Handlers ───────────────────────────────
+
+// docsPageHTML is a self-contained ReDoc page that renders the OpenAPI spec
+// served at /openapi.yaml. ReDoc is pulled from its CDN rather than vendored so
+// the service binary stays small (DFMS targets <20MB images); rendering the
+// page therefore needs outbound internet access from the viewer's browser.
+const docsPageHTML = `<!DOCTYPE html>
+<html>
+  <head>
+    <title>DFMS API Reference</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <link rel="icon" href="data:,"/>
+  </head>
+  <body>
+    <redoc spec-url="/openapi.yaml"></redoc>
+    <script src="https://cdn.redoc.ly/redoc/latest/bundles/redoc.standalone.js"></script>
+  </body>
+</html>`
+
+// docsHandler serves the interactive API documentation page at /docs.
+func docsHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(docsPageHTML))
+	}
+}
+
+// openAPISpecHandler serves the raw OpenAPI 3.1 specification embedded in the
+// binary, which the /docs page fetches to render itself.
+func openAPISpecHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Data(http.StatusOK, "application/yaml; charset=utf-8", openapi.Spec)
 	}
 }
 
