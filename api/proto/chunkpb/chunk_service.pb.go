@@ -665,7 +665,7 @@ const file_api_proto_chunk_service_proto_rawDesc = "" +
 	"UploadFile\x12 .dfms.chunk.v1.UploadFileRequest\x1a!.dfms.chunk.v1.UploadFileResponse(\x01\x12Y\n" +
 	"\fDownloadFile\x12\".dfms.chunk.v1.DownloadFileRequest\x1a#.dfms.chunk.v1.DownloadFileResponse0\x01\x12W\n" +
 	"\fDeleteChunks\x12\".dfms.chunk.v1.DeleteChunksRequest\x1a#.dfms.chunk.v1.DeleteChunksResponse\x12E\n" +
-	"\x06Health\x12\x1c.dfms.chunk.v1.HealthRequest\x1a\x1d.dfms.chunk.v1.HealthResponseB+Z)github.com/AnirudhSinghRajora/DFMS/api/proto/chunkpbb\x06proto3"
+	"\x06Health\x12\x1c.dfms.chunk.v1.HealthRequest\x1a\x1d.dfms.chunk.v1.HealthResponseB6Z4github.com/AnirudhSinghRajora/DFMS/api/proto/chunkpbb\x06proto3"
 
 var (
 	file_api_proto_chunk_service_proto_rawDescOnce sync.Once

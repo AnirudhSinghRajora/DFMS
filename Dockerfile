@@ -75,6 +75,12 @@ RUN mkdir -p /app/configs /app/secrets /app/migrations \
 
 WORKDIR /app
 
+# Config path for containerized runs. Deployments mount their config file here
+# (e.g. docker-compose mounts config.prod.yaml → /app/configs/config.yaml). The
+# binaries otherwise default to configs/config.dev.yaml, which does not exist in
+# the image — so this env var is what makes a container load its real config.
+ENV DFMS_CONFIG_PATH=/app/configs/config.yaml
+
 # Copy the compiled binary from builder stage
 COPY --from=builder /build/service /app/service
 
