@@ -313,10 +313,14 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      chunk-service:
+        condition: service_healthy
     environment:
       DFMS_DATABASE_PASSWORD: ${DFMS_DATABASE_PASSWORD:-dfms_prod_password}
       DFMS_MINIO_ACCESS_KEY: ${DFMS_MINIO_ACCESS_KEY:-minioadmin}
       DFMS_MINIO_SECRET_KEY: ${DFMS_MINIO_SECRET_KEY:-minioadmin123}
+      # Export traces to the OTel Collector on the backend network.
+      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
     volumes:
       - ../configs/config.prod.yaml:/app/configs/config.yaml:ro
       - ../secrets:/app/secrets:ro
@@ -361,6 +365,8 @@ services:
       DFMS_DATABASE_PASSWORD: ${DFMS_DATABASE_PASSWORD:-dfms_prod_password}
       DFMS_MINIO_ACCESS_KEY: ${DFMS_MINIO_ACCESS_KEY:-minioadmin}
       DFMS_MINIO_SECRET_KEY: ${DFMS_MINIO_SECRET_KEY:-minioadmin123}
+      # Export traces to the OTel Collector on the backend network.
+      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
     volumes:
       - ../configs/config.prod.yaml:/app/configs/config.yaml:ro
       - ../secrets:/app/secrets:ro
@@ -372,7 +378,9 @@ services:
           cpus: "2.0"
           memory: 1G
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      # Chunk Service serves gRPC on 9091; its HTTP /health + /metrics sidecar
+      # runs on gRPC port + 100 (9191), not 8080.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9191/health"]
       interval: 15s
       timeout: 5s
       retries: 3

@@ -111,9 +111,16 @@ func main() {
 	// ── Start Metrics HTTP Sidecar ──────────────────────────
 	// gRPC can't serve Prometheus metrics on the same port, so we run
 	// a lightweight HTTP server on port gRPC+100 (e.g., 9191) for /metrics.
+	// It also exposes /health so container orchestrators can probe liveness
+	// over HTTP without needing a gRPC health-check client.
 	metricsAddr := fmt.Sprintf(":%d", cfg.Server.GRPCPort+100)
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("/metrics", promhttp.Handler())
+	metricsMux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok","service":"chunk-service"}`))
+	})
 	go func() {
 		logger.Info("Metrics HTTP server listening", zap.String("addr", metricsAddr))
 		if err := http.ListenAndServe(metricsAddr, metricsMux); err != nil {
