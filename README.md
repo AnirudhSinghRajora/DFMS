@@ -117,7 +117,19 @@ make migrate-up
 make gen-keys
 ```
 
-### 3. Build & Run
+### 3. Run
+
+**One command (recommended)** — runs every service in a single terminal with
+color-prefixed logs; one `Ctrl-C` stops them all:
+
+```bash
+make dev-tools   # one-time: installs goreman (the process manager)
+make dev         # runs all services via ./Procfile
+```
+
+Run a subset with `goreman start gateway chunk`.
+
+**Or run each service manually** (separate terminals):
 
 ```bash
 # Build all services

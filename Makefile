@@ -1,4 +1,5 @@
 .PHONY: build test test-integration test-coverage test-load test-chaos test-all lint fmt \
+       dev dev-tools \
        docker-up docker-down docker-clean docker-logs \
        docker-build docker-prod-up docker-prod-down docker-prod-logs \
        migrate-up migrate-down migrate-create migrate-force \
@@ -11,6 +12,7 @@ GOFLAGS      := -trimpath -ldflags="-s -w"
 SERVICES     := api-gateway chunk-service metadata-service replication-manager gc-worker health-monitor
 DB_URL       := postgres://dfms:dfms_dev_password@localhost:5432/dfms?sslmode=disable
 MIGRATE      := $(shell go env GOPATH)/bin/migrate
+GOREMAN      := $(shell go env GOPATH)/bin/goreman
 COMPOSE_DEV  := deployments/docker-compose.yml
 COMPOSE_PROD := deployments/docker-compose.prod.yml
 
@@ -27,6 +29,22 @@ build-%: ## Build a specific service (e.g., make build-api-gateway)
 	@echo "Building $*..."
 	$(GO) build $(GOFLAGS) -o bin/$* ./cmd/$*/
 	@echo "Done."
+
+# ── Run (local dev) ────────────────────────────────────────
+# Runs all Go services in one terminal via goreman (reading ./Procfile), with
+# color-prefixed logs and a single Ctrl-C to stop everything. Start the backing
+# infrastructure first with 'make docker-up'.
+dev: ## Run all Go services locally with goreman (requires: make docker-up)
+	@test -x "$(GOREMAN)" || { \
+		echo "goreman not found at $(GOREMAN)."; \
+		echo "Install it with: make dev-tools"; \
+		exit 1; \
+	}
+	$(GOREMAN) start
+
+dev-tools: ## Install local dev tooling (goreman process manager)
+	$(GO) install github.com/mattn/goreman@latest
+	@echo "Installed goreman → $(GOREMAN)"
 
 # ── Test ───────────────────────────────────────────────────
 test: ## Run unit tests with coverage
@@ -164,7 +182,7 @@ help: ## Show this help
 	@echo "Development workflow:"
 	@echo "  make docker-up       → Start infrastructure (Postgres, Redis, MinIO, Kafka)"
 	@echo "  make migrate-up      → Apply database migrations"
-	@echo "  make build            → Build all service binaries"
+	@echo "  make dev             → Run all Go services in one terminal (goreman)"
 	@echo "  make test             → Run unit tests"
 	@echo ""
 	@echo "Production workflow:"
