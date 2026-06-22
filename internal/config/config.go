@@ -13,6 +13,7 @@ import (
 // Config holds all application configuration.
 type Config struct {
 	Server        ServerConfig        `mapstructure:"server"`
+	ChunkService  ChunkServiceConfig  `mapstructure:"chunk_service"`
 	Database      DatabaseConfig      `mapstructure:"database"`
 	Redis         RedisConfig         `mapstructure:"redis"`
 	MinIO         MinIOConfig         `mapstructure:"minio"`
@@ -31,6 +32,14 @@ type ServerConfig struct {
 	HTTPPort int    `mapstructure:"http_port"`
 	GRPCPort int    `mapstructure:"grpc_port"`
 	Mode     string `mapstructure:"mode"` // development | production
+}
+
+// ChunkServiceConfig holds the settings the API Gateway uses to reach the
+// Chunk Service (the data-plane gRPC service) over the network. It is distinct
+// from ServerConfig, which describes a service's own listeners: this is the
+// address of a downstream dependency, not a local bind address.
+type ChunkServiceConfig struct {
+	GRPCAddr string `mapstructure:"grpc_addr"` // host:port of the Chunk Service gRPC endpoint
 }
 
 // DatabaseConfig holds PostgreSQL connection settings.
@@ -152,6 +161,15 @@ func Load(configPath string) (*Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
+	// The API Gateway dials the Chunk Service over gRPC. When the address is not
+	// set explicitly, fall back to the gRPC port on localhost — this matches the
+	// single-host development layout where every service runs on the same machine.
+	// Containerized deployments must set chunk_service.grpc_addr to the service's
+	// network name (e.g. "chunk-service:9091").
+	if cfg.ChunkService.GRPCAddr == "" {
+		cfg.ChunkService.GRPCAddr = fmt.Sprintf("localhost:%d", cfg.Server.GRPCPort)
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
@@ -206,6 +224,10 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.http_port", 8080)
 	v.SetDefault("server.grpc_port", 9090)
 	v.SetDefault("server.mode", "development")
+	// Registered (empty) so AutomaticEnv can bind DFMS_CHUNK_SERVICE_GRPC_ADDR
+	// even when the key is absent from the config file. When left empty it is
+	// derived from server.grpc_port in Load (see the fallback there).
+	v.SetDefault("chunk_service.grpc_addr", "")
 	v.SetDefault("database.host", "localhost")
 	v.SetDefault("database.port", 5432)
 	v.SetDefault("database.max_connections", 25)

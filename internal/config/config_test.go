@@ -81,6 +81,36 @@ func TestLoad_ValidConfig(t *testing.T) {
 	assert.Equal(t, 3, cfg.Replication.Factor)
 }
 
+func TestLoad_ChunkServiceAddr_Explicit(t *testing.T) {
+	path := writeConfigFile(t, minimalValidConfig+`
+chunk_service:
+  grpc_addr: chunk-service:9091
+`)
+
+	cfg, err := config.Load(path)
+	require.NoError(t, err)
+	assert.Equal(t, "chunk-service:9091", cfg.ChunkService.GRPCAddr)
+}
+
+func TestLoad_ChunkServiceAddr_DefaultsToLocalhostGRPCPort(t *testing.T) {
+	// minimalValidConfig omits chunk_service entirely and uses grpc_port 9090,
+	// so the address should fall back to the local single-host default.
+	path := writeConfigFile(t, minimalValidConfig)
+
+	cfg, err := config.Load(path)
+	require.NoError(t, err)
+	assert.Equal(t, "localhost:9090", cfg.ChunkService.GRPCAddr)
+}
+
+func TestLoad_ChunkServiceAddr_EnvOverride(t *testing.T) {
+	t.Setenv("DFMS_CHUNK_SERVICE_GRPC_ADDR", "chunk-service.internal:9091")
+	path := writeConfigFile(t, minimalValidConfig)
+
+	cfg, err := config.Load(path)
+	require.NoError(t, err)
+	assert.Equal(t, "chunk-service.internal:9091", cfg.ChunkService.GRPCAddr)
+}
+
 func TestLoad_NonexistentFile(t *testing.T) {
 	_, err := config.Load("/nonexistent/config.yaml")
 	assert.Error(t, err)
