@@ -12,7 +12,7 @@ All workflows go through the `Makefile` (run `make help` for the full list).
 make docker-up          # Start dev infrastructure ONLY (Postgres, Redis, MinIO, Kafka, Prometheus, Grafana)
 make migrate-up         # Apply DB migrations (needs golang-migrate installed; uses migrations/)
 make gen-keys           # Generate ES256 JWT keypair into secrets/ (required before running api-gateway)
-make build              # Build all 6 service binaries into bin/
+make build              # Build all 6 service binaries + dfmsctl CLI into bin/
 make build-api-gateway  # Build a single service (build-<service>)
 make dev-tools          # One-time: install goreman (process manager)
 make dev                # Run all Go services in one terminal via goreman (./Procfile)
@@ -22,6 +22,18 @@ make test-integration   # Integration tests (-tags=integration, requires Docker)
 make lint               # golangci-lint run ./... (config in .golangci.yml)
 make fmt                # gofmt + goimports -local github.com/AnirudhSinghRajora/DFMS
 make proto-gen          # Regenerate api/proto/chunkpb/* from api/proto/*.proto
+```
+
+### CLI (`dfmsctl`)
+
+```bash
+make build-cli                       # Build bin/dfmsctl (with version ldflags)
+make run-cli ARGS="version"          # Quick run without building
+make man-pages                       # Generate man pages into man/
+make completions                     # Generate shell completions into completions/
+
+go run ./cmd/dfmsctl/ files list     # Run a CLI command during development
+go test -race ./internal/cli/ ./internal/dfmsclient/   # CLI + client tests
 ```
 
 Dev model: `make docker-up` runs only the backing infrastructure in Docker; you run the Go services locally — either all at once with `make dev` (goreman, reading the root `Procfile`) or individually with `go run ./cmd/<service>/`. The `Procfile` omits `metadata-service` (a stub). `make docker-prod-up` is the only path that runs the Go services themselves in containers (behind Traefik).

@@ -169,6 +169,107 @@ make docker-prod-up
 
 ---
 
+## 🖥️ CLI — `dfmsctl`
+
+`dfmsctl` is the official command-line client for DFMS. It wraps the entire API
+with ergonomic commands, automatic token management, streaming uploads/downloads,
+and progress bars — no more hand-crafted `curl`.
+
+### Installation
+
+**Go install** (requires Go 1.26+):
+
+```bash
+go install github.com/AnirudhSinghRajora/DFMS/cmd/dfmsctl@latest
+```
+
+**Pre-built binaries** — download from
+[GitHub Releases](https://github.com/AnirudhSinghRajora/DFMS/releases)
+for Linux, macOS, and Windows (amd64/arm64).
+
+**Build from source:**
+
+```bash
+make build-cli          # → bin/dfmsctl (with version metadata)
+```
+
+### Quick Start
+
+```bash
+# Point dfmsctl at your DFMS server
+dfmsctl context add prod --url https://dfms.example.com
+dfmsctl context use prod
+
+# Authenticate (prompts for password; tokens stored securely)
+dfmsctl auth login --email me@example.com
+
+# Upload a file (progress bar, auto-multipart for large files)
+dfmsctl files upload ./report.pdf
+
+# List your files
+dfmsctl files list
+
+# Download a file
+dfmsctl files download <file-id> -O ./report.pdf
+
+# Search
+dfmsctl files search report
+
+# Check storage usage
+dfmsctl storage usage
+```
+
+Access tokens refresh automatically — no re-login required.
+
+### Output Formats & Scripting
+
+```bash
+# JSON output for scripting
+dfmsctl files list -o json | jq '.files[].id'
+
+# YAML output
+dfmsctl storage usage -o yaml
+
+# Quiet mode — prints only IDs (pipe-friendly)
+ID=$(dfmsctl files upload report.pdf -q)
+dfmsctl files download "$ID" -O report.pdf
+
+# Stable exit codes for scripting (see docs/CLI_DESIGN.md §9)
+dfmsctl files get "$ID" || echo "exit code: $?"
+```
+
+### Shell Completions
+
+```bash
+# Bash (current session)
+source <(dfmsctl completion bash)
+
+# Zsh
+dfmsctl completion zsh > "${fpath[1]}/_dfmsctl"
+
+# Fish
+dfmsctl completion fish > ~/.config/fish/completions/dfmsctl.fish
+
+# PowerShell
+dfmsctl completion powershell | Out-String | Invoke-Expression
+```
+
+### Multi-Server Contexts
+
+```bash
+dfmsctl context add local --url http://localhost:8080
+dfmsctl context add staging --url https://staging.dfms.example.com
+
+# Switch default
+dfmsctl context use staging
+
+# Override per command
+dfmsctl -c local files list
+DFMSCTL_CONTEXT=staging dfmsctl files list
+```
+
+---
+
 ## 📡 API Reference
 
 Full OpenAPI specification: [`api/openapi/openapi.yaml`](api/openapi/openapi.yaml)
@@ -194,12 +295,10 @@ TOKEN="eyJ..."
 ### File Operations
 
 ```bash
-# Upload a file
+# Upload a file (multipart/form-data, field name "file")
 curl -X POST http://localhost:8080/api/v1/files/upload \
   -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/octet-stream" \
-  -H "X-File-Name: report.pdf" \
-  --data-binary @report.pdf
+  -F "file=@report.pdf"
 
 # List files
 curl http://localhost:8080/api/v1/files \
