@@ -22,7 +22,8 @@ linters:
 
 linters-settings:
   govet:
-    check-shadowing: true
+    enable:
+      - shadow
   goimports:
     local-prefixes: github.com/AnirudhSinghRajora/DFMS
   revive:
