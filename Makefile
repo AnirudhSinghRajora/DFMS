@@ -1,4 +1,4 @@
-.PHONY: build test test-integration test-coverage test-load test-chaos test-all lint fmt \
+.PHONY: build build-cli run-cli man-pages completions test test-integration test-coverage test-load test-chaos test-all lint fmt \
        dev dev-tools \
        docker-up docker-down docker-clean docker-logs \
        docker-build docker-prod-up docker-prod-down docker-prod-logs \
@@ -10,6 +10,13 @@ APP_NAME     := dfms
 GO           := go
 GOFLAGS      := -trimpath -ldflags="-s -w"
 SERVICES     := api-gateway chunk-service metadata-service replication-manager gc-worker health-monitor
+
+# CLI build metadata, injected into cmd/dfmsctl at link time. Override any of
+# VERSION/COMMIT/DATE on the command line (e.g. `make build-cli VERSION=v1.0.0`).
+VERSION      ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+COMMIT       ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+DATE         ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+CLI_LDFLAGS  := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 DB_URL       := postgres://dfms:dfms_dev_password@localhost:5432/dfms?sslmode=disable
 MIGRATE      := $(shell go env GOPATH)/bin/migrate
 GOREMAN      := $(shell go env GOPATH)/bin/goreman
@@ -17,13 +24,27 @@ COMPOSE_DEV  := deployments/docker-compose.yml
 COMPOSE_PROD := deployments/docker-compose.prod.yml
 
 # ── Build ──────────────────────────────────────────────────
-build: ## Build all service binaries
+build: ## Build all service binaries and the dfmsctl CLI
 	@echo "Building all services..."
 	@for svc in $(SERVICES); do \
 		echo "  → $$svc"; \
 		$(GO) build $(GOFLAGS) -o bin/$$svc ./cmd/$$svc/; \
 	done
+	@$(MAKE) --no-print-directory build-cli
 	@echo "Done."
+
+build-cli: ## Build the dfmsctl CLI binary (with version metadata)
+	@echo "  → dfmsctl"
+	@$(GO) build -trimpath -ldflags="$(CLI_LDFLAGS)" -o bin/dfmsctl ./cmd/dfmsctl/
+
+run-cli: ## Run the dfmsctl CLI (usage: make run-cli ARGS="version")
+	@$(GO) run ./cmd/dfmsctl/ $(ARGS)
+
+man-pages: ## Generate man pages for dfmsctl into man/
+	@$(GO) run ./cmd/dfmsctl-docs/ man man/
+
+completions: ## Generate shell completion scripts into completions/
+	@$(GO) run ./cmd/dfmsctl-docs/ completions completions/
 
 build-%: ## Build a specific service (e.g., make build-api-gateway)
 	@echo "Building $*..."

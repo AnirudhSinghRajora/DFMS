@@ -161,3 +161,26 @@ jobs:
           sleep 2
           docker logs smoke-test 2>&1 || true
           docker stop smoke-test 2>/dev/null || true
+
+  # ─── CLI Build ──────────────────────────────────────────
+  # The dfmsctl CLI is a native binary (not a Docker image), so it builds in its
+  # own job rather than the service image matrix above.
+  build-cli:
+    name: Build CLI (dfmsctl)
+    runs-on: ubuntu-latest
+    needs: [lint, unit-test]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Build dfmsctl
+        run: make build-cli
+
+      - name: Smoke test (version)
+        run: ./bin/dfmsctl version

@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# GoReleaser configuration for dfmsctl — the DFMS CLI.
+# Triggered by the release workflow on v* tags.
+# Docs: https://goreleaser.com
+
+version: 2
+
+project_name: dfmsctl
+
+before:
+  hooks:
+    - go mod tidy
+    # Generate shell completions and man pages into dist/ so they can be
+    # bundled with the archives. The helper binary is not distributed.
+    - go run ./cmd/dfmsctl-docs/ completions {{ dir .Path }}/completions
+    - go run ./cmd/dfmsctl-docs/ man {{ dir .Path }}/man
+
+builds:
+  - id: dfmsctl
+    main: ./cmd/dfmsctl/
+    binary: dfmsctl
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .ShortCommit }}
+      - -X main.date={{ .Date }}
+
+archives:
+  - id: dfmsctl
+    builds: [dfmsctl]
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - src: dist/completions/*
+        dst: completions
+        strip_parent: true
+      - src: dist/man/*
+        dst: man
+        strip_parent: true
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - "Merge pull request"
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: AnirudhSinghRajora
+    name: DFMS
+  prerelease: auto
+  name_template: "dfmsctl {{ .Version }}"
+  header: |
+    ## dfmsctl {{ .Version }}
+
+    ### Installation
+
+    **Go install:**
+    ```
+    go install github.com/AnirudhSinghRajora/DFMS/cmd/dfmsctl@{{ .Tag }}
+    ```
+
+    **Binary download:** see the assets below for your platform.
+
+snapshot:
+  version_template: "{{ .Tag }}-next"
